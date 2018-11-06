@@ -175,7 +175,7 @@
                             return;
                         }
 
-                        snap = this.checkAspectRatio(snap);
+                        snap = this.checkAspectRatio(snap, true);
 
                         this.el.move(this.parameters.box.x, this.parameters.box.y + snap[1]).size(this.parameters.box.width + snap[0], this.parameters.box.height - snap[1]);
                     }
@@ -213,7 +213,7 @@
                             return;
                         }
 
-                        snap = this.checkAspectRatio(snap);
+                        snap = this.checkAspectRatio(snap, true);
 
                         this.el.move(this.parameters.box.x + snap[0], this.parameters.box.y).size(this.parameters.box.width - snap[0], this.parameters.box.height + snap[1]);
                     }
@@ -295,12 +295,12 @@
                     // end minus middle
                     var pAngle = Math.atan2((current.y - this.parameters.box.y - this.parameters.box.height / 2), (current.x - this.parameters.box.x - this.parameters.box.width / 2));
 
-                    var angle = (pAngle - sAngle) * 180 / Math.PI;
+                    var angle = this.parameters.rotation + (pAngle - sAngle) * 180 / Math.PI + this.options.snapToAngle / 2;
 
                     // We have to move the element to the center of the box first and change the rotation afterwards
                     // because rotation always works around a rotation-center, which is changed when moving the element
                     // We also set the new rotation center to the center of the box.
-                    this.el.center(this.parameters.box.cx, this.parameters.box.cy).rotate(this.parameters.rotation + angle - angle % this.options.snapToAngle, this.parameters.box.cx, this.parameters.box.cy);
+                    this.el.center(this.parameters.box.cx, this.parameters.box.cy).rotate(angle - (angle % this.options.snapToAngle), this.parameters.box.cx, this.parameters.box.cy);
                 };
                 break;
 
@@ -340,6 +340,18 @@
             _this.done();
         });
 
+        SVG.on(window, 'keydown.resize', function (e) {
+            if (e.keyCode === 17) {
+                _this._snapTo90 = true;
+            }
+        });
+
+        SVG.on(window, 'keyup.resize', function (e) {
+            if (e.keyCode === 17) {
+                _this._snapTo90 = false;
+            }
+        });
+
     };
 
     // The update-function redraws the element every time the mouse is moving
@@ -359,6 +371,29 @@
         var diffX = p.x - this.parameters.p.x,
             diffY = p.y - this.parameters.p.y;
 
+        if (this._snapTo90) {
+
+            var theta = Math.atan2(diffY, diffX);
+
+            var q0 = Math.PI / 4.0;
+            var q1 = (3.0 * Math.PI) / 4.0;
+            var q2 = (-3.0 * Math.PI) / 4.0;
+            var q3 = (-1.0 * Math.PI) / 4.0;
+
+            if (theta >= 0 && theta < q0)
+                diffY = 0;
+            else if (theta >= q0 && theta < q1)
+                diffX = 0;
+            else if (theta >= q1 && theta < Math.PI)
+                diffY = 0;
+            else if (theta < 0 && theta >= q3)
+                diffY = 0;
+            else if (theta < q3 && theta >= q2)
+                diffX = 0;
+            else if (theta > -Math.PI && theta < q2)
+                diffY = 0;
+        }
+
         this.lastUpdateCall = [diffX, diffY];
 
         // Calculate the new position and height / width of the element
@@ -376,6 +411,8 @@
         SVG.off(window, 'mouseup.resize');
         SVG.off(window, 'touchmove.resize');
         SVG.off(window, 'touchend.resize');
+        SVG.off(window, 'keydown.resize');
+        SVG.off(window, 'keyup.resize');
         this.el.fire('resizedone');
     };
 
@@ -395,6 +432,12 @@
             temp = [(this.parameters.box.x + diffX + (flag & 1 ? 0 : this.parameters.box.width)) % this.options.snapToGrid, (this.parameters.box.y + diffY + (flag & (1 << 1) ? 0 : this.parameters.box.height)) % this.options.snapToGrid];
         }
 
+        if(diffX < 0) {
+            temp[0] -= this.options.snapToGrid;
+        }
+        if(diffY < 0) {
+            temp[1] -= this.options.snapToGrid;
+        }
 
         diffX -= (Math.abs(temp[0]) < this.options.snapToGrid / 2 ?
                   temp[0] :
@@ -440,7 +483,7 @@
         return [diffX, diffY];
     };
 
-    ResizeHandler.prototype.checkAspectRatio = function (snap) {
+    ResizeHandler.prototype.checkAspectRatio = function (snap, isReverse) {
         if (!this.options.saveAspectRatio) {
             return snap;
         }
@@ -454,13 +497,14 @@
         if (newAspectRatio < aspectRatio) {
             // Height is too big. Adapt it
             updatedSnap[1] = newW / aspectRatio - this.parameters.box.height;
+            isReverse && (updatedSnap[1] = -updatedSnap[1]);
         } else if (newAspectRatio > aspectRatio) {
             // Width is too big. Adapt it
             updatedSnap[0] = this.parameters.box.width - newH * aspectRatio;
+            isReverse && (updatedSnap[0] = -updatedSnap[0]);
         }
 
         return updatedSnap;
-
     };
 
     SVG.extend(SVG.Element, {

@@ -329,6 +329,18 @@
             _this.done();
         });
 
+        SVG.on(window, 'keydown.resize', function (e) {
+            if (e.keyCode === 17) {
+                _this._snapTo90 = true;
+            }
+        });
+
+        SVG.on(window, 'keyup.resize', function (e) {
+            if (e.keyCode === 17) {
+                _this._snapTo90 = false;
+            }
+        });
+
     };
 
     // The update-function redraws the element every time the mouse is moving
@@ -347,6 +359,29 @@
 
         var diffX = p.x - this.parameters.p.x,
             diffY = p.y - this.parameters.p.y;
+            
+        if (this._snapTo90) {
+                
+            var theta = Math.atan2(diffY, diffX);
+                    
+            var q0 = Math.PI / 4.0;
+            var q1 = (3.0 * Math.PI) / 4.0;
+            var q2 = (-3.0 * Math.PI) / 4.0;
+            var q3 = (-1.0 * Math.PI) / 4.0;
+
+            if (theta >= 0 && theta < q0)
+                diffY = 0;
+            else if (theta >= q0 && theta < q1)
+                diffX = 0;
+            else if (theta >= q1 && theta < Math.PI)
+                diffY = 0;
+            else if (theta < 0 && theta >= q3)
+                diffY = 0;
+            else if (theta < q3 && theta >= q2)
+                diffX = 0;
+            else if (theta > -Math.PI && theta < q2)
+                diffY = 0;
+        }
 
         this.lastUpdateCall = [diffX, diffY];
 
@@ -365,6 +400,8 @@
         SVG.off(window, 'mouseup.resize');
         SVG.off(window, 'touchmove.resize');
         SVG.off(window, 'touchend.resize');
+        SVG.off(window, 'keydown.resize');
+        SVG.off(window, 'keyup.resize');
         this.el.fire('resizedone');
     };
 
